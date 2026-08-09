@@ -57,6 +57,15 @@ app.use('/api', limiter);
 // Mount API Routing
 app.use('/api', apiRouter);
 
+//deployment health check endpoint
+app.get("/", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "InterviewAI Backend",
+    environment: process.env.NODE_ENV || "development",
+  });
+});
+
 // Fallback for unhandled paths (404)
 app.use('*', (req, res, next) => {
   next(new NotFoundError(`Cannot find path ${req.originalUrl} on this server`));
