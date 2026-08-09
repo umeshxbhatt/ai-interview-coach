@@ -149,4 +149,22 @@ export class AuthController {
       next(error);
     }
   }
+
+  static async updateProfile(req: AuthenticatedRequest, res: ExpressResponse, next: ExpressNextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Not authenticated' });
+        return;
+      }
+
+      const updatedUser = await authService.updateUser(userId, req.body);
+      res.status(200).json({
+        status: 'success',
+        data: { user: updatedUser },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

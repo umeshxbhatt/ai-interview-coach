@@ -35,6 +35,8 @@ const fetchLatestResume = async () => {
   return response.data.data.resume;
 };
 
+const MAX_RESUME_SIZE = 5 * 1024 * 1024; // 5 MiB in bytes
+
 export default function ResumeAnalyzer() {
   const queryClient = useQueryClient();
   const [dragActive, setDragActive] = useState<boolean>(false);
@@ -71,9 +73,10 @@ export default function ResumeAnalyzer() {
       
       timers.forEach((t) => clearTimeout(t));
       queryClient.invalidateQueries({ queryKey: ['latestResume'] });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Upload failed. Ensure file is a valid PDF resume under 5MB.');
+      const errorMessage = err.response?.data?.message || 'Upload failed. Please ensure the file is under 5MB.';
+      alert(errorMessage);
     } finally {
       timers.forEach((t) => clearTimeout(t));
       setIsUploading(false);
@@ -98,7 +101,17 @@ export default function ResumeAnalyzer() {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type === 'application/pdf') {
+      
+      if (droppedFile.size > MAX_RESUME_SIZE) {
+        alert('File is too large. Maximum allowed size is 5 MiB.');
+        return;
+      }
+
+      const isPdf = 
+        droppedFile.type === 'application/pdf' || 
+        droppedFile.name.toLowerCase().endsWith('.pdf');
+
+      if (isPdf) {
         setFile(droppedFile);
         uploadResume(droppedFile);
       } else {
@@ -110,7 +123,17 @@ export default function ResumeAnalyzer() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      if (selectedFile.type === 'application/pdf') {
+      
+      if (selectedFile.size > MAX_RESUME_SIZE) {
+        alert('File is too large. Maximum allowed size is 5 MiB.');
+        return;
+      }
+
+      const isPdf = 
+        selectedFile.type === 'application/pdf' || 
+        selectedFile.name.toLowerCase().endsWith('.pdf');
+
+      if (isPdf) {
         setFile(selectedFile);
         uploadResume(selectedFile);
       } else {

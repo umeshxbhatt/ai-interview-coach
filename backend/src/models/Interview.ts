@@ -8,6 +8,9 @@ export interface IQuestionAnswer {
   technicalScore?: number;
   communicationScore?: number;
   feedback?: string;
+  type?: 'mcq' | 'short_answer';
+  options?: string[];
+  correctAnswer?: string;
 }
 
 export interface IFeedbackReport {
@@ -21,6 +24,7 @@ export interface IInterview extends Document {
   category: string;
   difficulty: 'Junior' | 'Mid' | 'Senior';
   questionCount: number;
+  questionType?: 'mixed' | 'mcq' | 'short_answer';
   status: 'ongoing' | 'completed';
   questions: IQuestionAnswer[];
   currentQuestionIndex: number;
@@ -42,6 +46,9 @@ const questionAnswerSchema = new Schema<IQuestionAnswer>({
   technicalScore: { type: Number, default: 0 },
   communicationScore: { type: Number, default: 0 },
   feedback: { type: String, default: '' },
+  type: { type: String, enum: ['mcq', 'short_answer'], default: 'short_answer' },
+  options: { type: [String], default: undefined },
+  correctAnswer: { type: String, default: undefined },
 });
 
 const feedbackReportSchema = new Schema<IFeedbackReport>({
@@ -72,6 +79,10 @@ const interviewSchema = new Schema<IInterview>(
       type: Number,
       required: true,
       default: 5,
+    },
+    questionType: {
+      type: String,
+      enum: ['mixed', 'mcq', 'short_answer'],
     },
     status: {
       type: String,

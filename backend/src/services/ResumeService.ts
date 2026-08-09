@@ -5,7 +5,7 @@ import { User } from '../models/User';
 import { NotFoundError, BadRequestError } from '../utils/httpErrors';
 
 export class ResumeService {
-  private modelName = 'gemini-2.5-flash';
+  private modelName = 'gemini-3.5-flash';
 
   async analyzeResume(userId: string, fileBuffer: Buffer): Promise<IResume> {
     if (!fileBuffer || fileBuffer.length === 0) {

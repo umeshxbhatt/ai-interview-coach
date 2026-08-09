@@ -12,6 +12,7 @@ import InterviewTerminal from './features/interview/InterviewTerminal';
 import InterviewReport from './features/interview/InterviewReport';
 import HistoryList from './features/history/HistoryList';
 import ResumeAnalyzer from './features/resume/ResumeAnalyzer';
+import ProfileSettings from './features/profile/ProfileSettings';
 import { useAuthStore } from './store/useAuthStore';
 
 const queryClient = new QueryClient({
@@ -54,7 +55,7 @@ function HomePlaceholder() {
         </div>
       </div>
       <footer className="absolute bottom-6 text-zinc-600 text-sm font-light">
-        InterviewAI &copy; {new Date().getFullYear()} &middot; Built with React 19 + TypeScript + FastAPI
+         Built with React 19 + TypeScript + FastAPI
       </footer>
     </div>
   );
@@ -128,6 +129,16 @@ export default function App() {
               <RouteGuard>
                 <DashboardLayout>
                   <ResumeAnalyzer />
+                </DashboardLayout>
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RouteGuard>
+                <DashboardLayout>
+                  <ProfileSettings />
                 </DashboardLayout>
               </RouteGuard>
             }

@@ -14,16 +14,24 @@ export class InterviewService {
     category: string,
     difficulty: 'Junior' | 'Mid' | 'Senior',
     questionCount: number,
+    questionType: 'mixed' | 'mcq' | 'short_answer' = 'mixed',
     customPrompt?: string
   ): Promise<IInterview> {
+    console.log(`[Practice] Backend received request: category=${category}, difficulty=${difficulty}, questionCount=${questionCount}, questionType=${questionType}`);
+    const startGemini = Date.now();
+
     // 1. Generate live questions and ideal answers from Gemini
+    console.log('[Practice] Gemini generation started');
     const curatedQuestions = await this.geminiService.generateQuestions(
       category,
       difficulty,
       questionCount,
+      questionType,
       customPrompt
     );
+    console.log(`[Practice] Gemini generation completed: ${Date.now() - startGemini} ms`);
 
+    const startDb = Date.now();
     // 2. Map schema elements to subdocument templates
     const questionsList: IQuestionAnswer[] = curatedQuestions.map((q) => ({
       questionText: q.questionText,
@@ -33,6 +41,9 @@ export class InterviewService {
       technicalScore: 0,
       communicationScore: 0,
       feedback: '',
+      type: q.type || 'short_answer',
+      options: q.options,
+      correctAnswer: q.correctAnswer,
     }));
 
     // 3. Create active session document in DB
@@ -41,10 +52,12 @@ export class InterviewService {
       category,
       difficulty,
       questionCount,
+      questionType,
       status: 'ongoing',
       questions: questionsList,
       currentQuestionIndex: 0,
     });
+    console.log(`[Practice] Database save completed: ${Date.now() - startDb} ms`);
 
     return interview;
   }
@@ -75,20 +88,37 @@ export class InterviewService {
 
     const currentIndex = interview.currentQuestionIndex;
     const activeQuestion = interview.questions[currentIndex];
+    const qType = activeQuestion.type || 'short_answer';
 
-    // 1. Execute semantic evaluation via local Python FastAPI NLP Microservice
-    const nlpContext = await this.nlpService.evaluateResponse(
-      userAnswer,
-      activeQuestion.idealAnswer
-    );
+    let evaluation: { technicalScore: number; communicationScore: number; feedback: string };
 
-    // 2. Query Gemini API to execute comprehensive scoring
-    const evaluation = await this.geminiService.evaluateAnswer(
-      activeQuestion.questionText,
-      userAnswer,
-      activeQuestion.idealAnswer,
-      nlpContext
-    );
+    if (qType === 'mcq') {
+      // Deterministic MCQ correctness evaluation (trimmed, case-insensitive comparison)
+      const correctOption = activeQuestion.correctAnswer || '';
+      const isCorrect = userAnswer.trim().toLowerCase() === correctOption.trim().toLowerCase();
+      const score = isCorrect ? 100 : 0;
+      evaluation = {
+        technicalScore: score,
+        communicationScore: score,
+        feedback: isCorrect 
+          ? `Correct. You selected "${userAnswer}". The correct answer is "${correctOption}".`
+          : `Incorrect. You selected "${userAnswer}". The correct answer is "${correctOption}".`
+      };
+    } else {
+      // 1. Execute semantic evaluation via local Python FastAPI NLP Microservice
+      const nlpContext = await this.nlpService.evaluateResponse(
+        userAnswer,
+        activeQuestion.idealAnswer
+      );
+
+      // 2. Query Gemini API to execute comprehensive scoring
+      evaluation = await this.geminiService.evaluateAnswer(
+        activeQuestion.questionText,
+        userAnswer,
+        activeQuestion.idealAnswer,
+        nlpContext
+      );
+    }
 
     // 3. Save evaluation results in embedded question
     activeQuestion.userAnswer = userAnswer;

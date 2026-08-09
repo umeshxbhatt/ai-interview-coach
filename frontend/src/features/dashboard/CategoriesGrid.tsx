@@ -24,11 +24,23 @@ interface Category {
   tags: string[];
 }
 
-export default function CategoriesGrid() {
+interface CategoriesGridProps {
+  onStart?: (settings: {
+    category: string;
+    categoryName: string;
+    difficulty: 'Junior' | 'Mid' | 'Senior';
+    questionCount: number;
+    questionType: 'mixed' | 'mcq' | 'short_answer';
+    customPrompt?: string;
+  }) => void;
+}
+
+export default function CategoriesGrid({ onStart }: CategoriesGridProps = {}) {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [difficulty, setDifficulty] = useState<'Junior' | 'Mid' | 'Senior'>('Mid');
   const [questionCount, setQuestionCount] = useState<number>(5);
+  const [questionType, setQuestionType] = useState<'mixed' | 'mcq' | 'short_answer'>('mixed');
   const [customPrompt, setCustomPrompt] = useState<string>('');
 
   const categories: Category[] = [
@@ -101,16 +113,22 @@ export default function CategoriesGrid() {
   const handleStartInterview = () => {
     if (!selectedCategory) return;
     
-    // Store configuration in session state and route to interview screen
-    navigate('/interview/session', {
-      state: {
-        category: selectedCategory.id,
-        categoryName: selectedCategory.name,
-        difficulty,
-        questionCount,
-        ...(selectedCategory.id === 'custom' && { customPrompt }),
-      },
-    });
+    const settings = {
+      category: selectedCategory.id,
+      categoryName: selectedCategory.name,
+      difficulty,
+      questionCount,
+      questionType,
+      ...(selectedCategory.id === 'custom' && { customPrompt }),
+    };
+
+    if (onStart) {
+      onStart(settings);
+    } else {
+      navigate('/interview/session', {
+        state: settings,
+      });
+    }
   };
 
   return (
@@ -256,11 +274,34 @@ export default function CategoriesGrid() {
                         onClick={() => setQuestionCount(count)}
                         className={`py-2 px-4 rounded-lg text-xs font-semibold border transition-all ${
                           questionCount === count
-                            ? 'bg-purple-600/10 border-purple-500 text-purple-400'
+                            ? 'bg-purple-660/10 border-purple-500 text-purple-400'
                             : 'bg-zinc-950 border-zinc-850 text-zinc-450 hover:text-white'
                         }`}
                       >
                         {count} Questions
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Question Type selector */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Question Type
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['mixed', 'mcq', 'short_answer'] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setQuestionType(type)}
+                        className={`py-2 px-4 rounded-lg text-[10px] sm:text-xs font-semibold border transition-all ${
+                          questionType === type
+                            ? 'bg-purple-650/10 border-purple-500 text-purple-400'
+                            : 'bg-zinc-950 border-zinc-850 text-zinc-450 hover:text-white'
+                        }`}
+                      >
+                        {type === 'mixed' ? 'Mixed' : type === 'mcq' ? 'MCQ Only' : 'Short Answer'}
                       </button>
                     ))}
                   </div>

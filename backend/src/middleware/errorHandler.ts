@@ -42,6 +42,15 @@ export const errorHandler = (
     statusCode = 401;
     message = 'Your session has expired. Please log in again.';
   }
+  // Handle Multer upload errors
+  else if (err.name === 'MulterError') {
+    statusCode = 400;
+    if ((err as any).code === 'LIMIT_FILE_SIZE') {
+      message = 'File size is too large. Maximum allowed size is 5 MiB.';
+    } else {
+      message = err.message;
+    }
+  }
 
   // Log unexpected errors (operational errors do not clutter logs)
   if (statusCode === 500) {

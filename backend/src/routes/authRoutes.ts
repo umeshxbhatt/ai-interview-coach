@@ -20,5 +20,6 @@ router.post('/reset-password/:token', validate(resetPasswordSchema), AuthControl
 
 // Protected routes
 router.get('/me', auth, AuthController.me as any);
+router.put('/profile', auth, AuthController.updateProfile as any);
 
 export default router;

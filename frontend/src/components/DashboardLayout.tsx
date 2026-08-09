@@ -27,6 +27,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const menuItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Practicing', path: '/interview/session', icon: BrainCircuit },
     { label: 'History & Reports', path: '/history', icon: History },
     { label: 'Resume Analyzer', path: '/resume', icon: FileText },
     { label: 'Profile Settings', path: '/profile', icon: Settings },

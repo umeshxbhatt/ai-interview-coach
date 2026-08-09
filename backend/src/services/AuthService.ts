@@ -8,6 +8,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
   BadRequestError,
+  NotFoundError,
 } from '../utils/httpErrors';
 import {
   signAccessToken,
@@ -216,5 +217,28 @@ export class AuthService {
       throw new UnauthorizedError('User session expired or user not found');
     }
     return user.toJSON() as any;
+  }
+
+  async updateUser(userId: string, updateData: Partial<IUser>): Promise<Omit<IUser, 'password'>> {
+    const allowedUpdates = {
+      name: updateData.name,
+      targetCompany: updateData.targetCompany,
+      experienceLevel: updateData.experienceLevel,
+      preferredStack: updateData.preferredStack,
+      profilePhoto: updateData.profilePhoto,
+    };
+
+    // Clean undefined fields
+    Object.keys(allowedUpdates).forEach((key) => {
+      if ((allowedUpdates as any)[key] === undefined) {
+        delete (allowedUpdates as any)[key];
+      }
+    });
+
+    const updatedUser = await this.userRepository.update(userId, allowedUpdates);
+    if (!updatedUser) {
+      throw new NotFoundError('User not found');
+    }
+    return updatedUser.toJSON() as any;
   }
 }

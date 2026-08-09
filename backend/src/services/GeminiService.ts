@@ -2,23 +2,48 @@ import { ai } from '../config/gemini';
 import { IQuestionAnswer } from '../models/Interview';
 
 export class GeminiService {
-  private modelName = 'gemini-2.5-flash';
+  private modelName = 'gemini-3.5-flash';
 
   async generateQuestions(
     category: string,
     difficulty: 'Junior' | 'Mid' | 'Senior',
     count: number,
+    questionType: 'mixed' | 'mcq' | 'short_answer' = 'mixed',
     customPrompt?: string
-  ): Promise<Array<{ questionText: string; idealAnswer: string; topic: string }>> {
+  ): Promise<Array<{
+    questionText: string;
+    idealAnswer: string;
+    topic: string;
+    type: 'mcq' | 'short_answer';
+    options?: string[];
+    correctAnswer?: string;
+  }>> {
     const systemInstruction = 
       'You are an elite staff software engineer, hiring manager, and technical interviewer. ' +
       'Your task is to generate realistic, industry-standard interview questions. ' +
+      'All questions must be SHORT (exactly 1-2 sentences), direct, and technically meaningful. ' +
       'Avoid high-level or overly generic questions. Make them highly contextual and technical.';
 
     let prompt = 
       `Generate exactly ${count} interview questions for a candidate practicing for a ${category} interview. ` +
       `The difficulty level is ${difficulty}. ` +
-      `Each question must focus on a specific sub-topic or core conceptual block.`;
+      `Each question must focus on a specific sub-topic or core conceptual block. `;
+
+    if (questionType === 'mcq') {
+      prompt += `All ${count} questions MUST be multiple choice questions (type: "mcq"). ` +
+                `Each MCQ must have EXACTLY 4 plausible options (options array containing 4 strings) and EXACTLY one correct answer (correctAnswer string, which must match one of the 4 options exactly). ` +
+                `Do not make the correct answer obvious through wording or length.`;
+    } else if (questionType === 'short_answer') {
+      prompt += `All ${count} questions MUST be short answer questions (type: "short_answer"). ` +
+                `For short_answer questions, options must be absent or empty, and correctAnswer must be absent or empty.`;
+    } else {
+      const numMcq = count === 5 ? 3 : count === 15 ? 8 : Math.floor(count / 2);
+      const numShort = count - numMcq;
+      prompt += `Generate a balanced randomized mixture containing exactly ${numMcq} multiple choice questions (type: "mcq") and exactly ${numShort} short answer questions (type: "short_answer"). ` +
+                `Each MCQ must have EXACTLY 4 plausible options (options array containing 4 strings) and EXACTLY one correct answer (correctAnswer string, which must match one of the 4 options exactly). ` +
+                `For short_answer questions, options and correctAnswer must be absent or empty. ` +
+                `Shuffle the order of questions so that the sequence of types is completely randomized and not predictable.`;
+    }
 
     if (category.toLowerCase() === 'custom' && customPrompt) {
       prompt += `\nAdditional Focus / Job Description context:\n${customPrompt}`;
@@ -39,8 +64,18 @@ export class GeminiService {
                 questionText: { type: 'string', description: 'The exact question text to ask the candidate.' },
                 idealAnswer: { type: 'string', description: 'A highly comprehensive, ideal answer showing what a senior engineer would state.' },
                 topic: { type: 'string', description: 'A 2-4 word summary of the sub-topic being evaluated (e.g. Caching, Closures, STAR conflict).' },
+                type: { type: 'string', enum: ['mcq', 'short_answer'], description: 'The type of question.' },
+                options: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'For MCQ type only: EXACTLY 4 plausible options. For short_answer: leave empty or absent.'
+                },
+                correctAnswer: {
+                  type: 'string',
+                  description: 'For MCQ type only: the correct answer, which must match exactly one of the options. For short_answer: leave empty or absent.'
+                }
               },
-              required: ['questionText', 'idealAnswer', 'topic'],
+              required: ['questionText', 'idealAnswer', 'topic', 'type'],
             },
           },
         },

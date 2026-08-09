@@ -13,19 +13,28 @@ export class InterviewController {
         return;
       }
 
-      const { category, difficulty, questionCount, customPrompt } = req.body;
+      const { category, difficulty, questionCount, questionType, customPrompt } = req.body;
+      const qType = questionType || 'mixed';
+      if (!['mixed', 'mcq', 'short_answer'].includes(qType)) {
+        res.status(400).json({ status: 'error', message: 'Invalid questionType. Allowed values: mixed, mcq, short_answer' });
+        return;
+      }
+
       const interview = await interviewService.startInterview(
         userId,
         category,
         difficulty,
         Number(questionCount || 5),
+        qType as any,
         customPrompt
       );
+
+      const sanitizedInterview = sanitizeInterviewForClient(interview);
 
       res.status(201).json({
         status: 'success',
         message: 'Interview session created successfully',
-        data: { interview },
+        data: { interview: sanitizedInterview },
       });
     } catch (error) {
       next(error);
@@ -49,10 +58,15 @@ export class InterviewController {
         userAnswer || ''
       );
 
+      const sanitizedInterview = sanitizeInterviewForClient(result.interview);
+
       res.status(200).json({
         status: 'success',
         message: 'Answer submitted successfully',
-        data: result,
+        data: {
+          ...result,
+          interview: sanitizedInterview,
+        },
       });
     } catch (error) {
       next(error);
@@ -70,10 +84,11 @@ export class InterviewController {
       }
 
       const interview = await interviewService.getReport(interviewId, userId);
+      const sanitizedInterview = sanitizeInterviewForClient(interview);
 
       res.status(200).json({
         status: 'success',
-        data: { interview },
+        data: { interview: sanitizedInterview },
       });
     } catch (error) {
       next(error);
@@ -89,10 +104,11 @@ export class InterviewController {
       }
 
       const interviews = await interviewService.getUserHistory(userId);
+      const sanitizedInterviews = interviews.map((item: any) => sanitizeInterviewForClient(item));
 
       res.status(200).json({
         status: 'success',
-        data: { interviews },
+        data: { interviews: sanitizedInterviews },
       });
     } catch (error) {
       next(error);
@@ -119,4 +135,24 @@ export class InterviewController {
       next(error);
     }
   }
+}
+
+function sanitizeInterviewForClient(interview: any) {
+  if (!interview) return interview;
+  
+  // Convert document to plain object
+  const interviewObj = interview.toObject ? interview.toObject() : JSON.parse(JSON.stringify(interview));
+  
+  if (interviewObj.questions) {
+    interviewObj.questions.forEach((q: any) => {
+      const qType = q.type || 'short_answer';
+      if (qType === 'mcq') {
+        const hasAnswered = q.userAnswer && q.userAnswer.trim() !== '';
+        if (!hasAnswered) {
+          delete q.correctAnswer;
+        }
+      }
+    });
+  }
+  return interviewObj;
 }

@@ -18,8 +18,12 @@ export const upload = multer({
     fileSize: 5 * 1024 * 1024, // Limit file size to 5MB
   },
   fileFilter: (req, file, callback) => {
-    // Only accept PDF uploads
-    if (file.mimetype === 'application/pdf') {
+    // Accept PDF uploads via MIME type or file extension
+    const isPdf = 
+      file.mimetype === 'application/pdf' || 
+      file.originalname.toLowerCase().endsWith('.pdf');
+      
+    if (isPdf) {
       callback(null, true);
     } else {
       callback(new Error('Invalid file format. Only PDF files are allowed.'));

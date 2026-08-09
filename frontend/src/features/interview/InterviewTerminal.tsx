@@ -11,18 +11,27 @@ import {
   Brain,
   CheckCircle,
 } from 'lucide-react';
+import CategoriesGrid from '../dashboard/CategoriesGrid';
+import DashboardLayout from '../../components/DashboardLayout';
 
 interface Question {
   questionText: string;
   topic: string;
+  type?: 'mcq' | 'short_answer';
+  options?: string[];
 }
 
 export default function InterviewTerminal() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Route state parameters
-  const { category, categoryName, difficulty, questionCount, customPrompt } = location.state || {};
+  // Route state parameters as local states, initialized from location.state if present
+  const [localCategory, setLocalCategory] = useState<string | undefined>((location.state as any)?.category);
+  const [localCategoryName, setLocalCategoryName] = useState<string | undefined>((location.state as any)?.categoryName);
+  const [localDifficulty, setLocalDifficulty] = useState<'Junior' | 'Mid' | 'Senior' | undefined>((location.state as any)?.difficulty);
+  const [localQuestionCount, setLocalQuestionCount] = useState<number | undefined>((location.state as any)?.questionCount);
+  const [localQuestionType, setLocalQuestionType] = useState<'mixed' | 'mcq' | 'short_answer'>((location.state as any)?.questionType || 'mixed');
+  const [localCustomPrompt, setLocalCustomPrompt] = useState<string | undefined>((location.state as any)?.customPrompt);
 
   const [interviewId, setInterviewId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -37,25 +46,57 @@ export default function InterviewTerminal() {
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showExitPrompt, setShowExitPrompt] = useState<boolean>(false);
+  const [initError, setInitError] = useState<string | null>(null);
+  const sessionStartedRef = useRef<string | null>(null);
 
-  // Redirect if navigated to directly without settings
+  // Sync router location.state to local state variables when location changes
   useEffect(() => {
-    if (!category) {
-      navigate('/dashboard');
+    const state = location.state as any;
+    setLocalCategory(state?.category);
+    setLocalCategoryName(state?.categoryName);
+    setLocalDifficulty(state?.difficulty);
+    setLocalQuestionCount(state?.questionCount);
+    setLocalQuestionType(state?.questionType || 'mixed');
+    setLocalCustomPrompt(state?.customPrompt);
+
+    // Reset initialization states when category is cleared
+    if (!state?.category) {
+      setIsInitializing(true);
+      setInterviewId(null);
+      setQuestions([]);
+      setCurrentIndex(0);
+      setUserAnswer('');
+      setSeconds(0);
+      if (timerRef.current) clearInterval(timerRef.current);
+      sessionStartedRef.current = null;
+      setInitError(null);
     }
-  }, [category, navigate]);
+  }, [location]);
 
-  // Start interview session on mount
+  // Start interview session on mount or when local states become defined
   useEffect(() => {
+    if (!localCategory || initError) return;
+
+    // Create a unique key for the current configuration to avoid duplicate starts
+    const configKey = `${localCategory}-${localDifficulty}-${localQuestionCount}-${localQuestionType}-${localCustomPrompt || ''}`;
+    if (sessionStartedRef.current === configKey) {
+      return;
+    }
+    sessionStartedRef.current = configKey;
+
     let active = true;
     const startSession = async () => {
       try {
+        console.log(`[Practice] Frontend starting session: category=${localCategory}, difficulty=${localDifficulty}, count=${localQuestionCount}, type=${localQuestionType}`);
+        const startReq = Date.now();
         const response = await api.post('/interviews', {
-          category,
-          difficulty,
-          questionCount,
-          customPrompt,
+          category: localCategory,
+          difficulty: localDifficulty,
+          questionCount: localQuestionCount,
+          questionType: localQuestionType,
+          customPrompt: localCustomPrompt,
         });
+        console.log(`[Practice] Response returned: ${Date.now() - startReq} ms`);
         
         if (active) {
           const session = response.data.data.interview;
@@ -69,23 +110,23 @@ export default function InterviewTerminal() {
             setSeconds((prev) => prev + 1);
           }, 1000);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to initialize interview session:', err);
         if (active) {
-          navigate('/dashboard');
+          const errMsg = err.response?.data?.message || err.message || 'Unknown initialization error';
+          setInitError(errMsg);
+          setIsInitializing(false);
         }
       }
     };
 
-    if (category) {
-      startSession();
-    }
+    startSession();
 
     return () => {
       active = false;
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [category, difficulty, questionCount, customPrompt, navigate]);
+  }, [localCategory, localDifficulty, localQuestionCount, localQuestionType, localCustomPrompt, initError]);
 
   // Block page leave attempts (beforeunload event)
   useEffect(() => {
@@ -134,6 +175,66 @@ export default function InterviewTerminal() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  if (!localCategory) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">Start Practice Session</h1>
+            <p className="text-zinc-400 text-sm font-light mt-1">
+              Select a category to begin your AI-powered mock interview.
+            </p>
+          </div>
+          <CategoriesGrid onStart={(settings) => {
+            setLocalCategory(settings.category);
+            setLocalCategoryName(settings.categoryName);
+            setLocalDifficulty(settings.difficulty);
+            setLocalQuestionCount(settings.questionCount);
+            setLocalQuestionType(settings.questionType);
+            setLocalCustomPrompt(settings.customPrompt);
+          }} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (initError) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-white px-4 py-12">
+          <div className="p-3 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 mb-4">
+            <AlertTriangle className="w-8 h-8 animate-pulse" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Practice Session Failed</h2>
+          <p className="text-zinc-400 text-xs font-light text-center max-w-md leading-relaxed mb-6">
+            {initError}
+          </p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                setInitError(null);
+                setLocalCategory(undefined);
+              }}
+              className="px-5 py-2.5 rounded-lg text-xs font-semibold text-zinc-400 bg-zinc-900 border border-zinc-800 hover:text-white hover:bg-zinc-850 transition-all"
+            >
+              Back to Settings
+            </button>
+            <button
+              onClick={() => {
+                setInitError(null);
+                setIsInitializing(true);
+                sessionStartedRef.current = null;
+              }}
+              className="px-5 py-2.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-650/15 transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (isInitializing) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white px-4">
@@ -162,13 +263,13 @@ export default function InterviewTerminal() {
             <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block mb-1">
               Active Session
             </span>
-            <h2 className="text-xl font-bold tracking-tight text-white">{categoryName}</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white">{localCategoryName}</h2>
             <div className="flex gap-2 items-center mt-3">
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50 text-zinc-400">
-                {difficulty} Level
+                {localDifficulty} Level
               </span>
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50 text-zinc-400">
-                {questionCount} Questions
+                {localQuestionCount} Questions
               </span>
             </div>
           </div>
@@ -259,23 +360,58 @@ export default function InterviewTerminal() {
             </motion.div>
           </AnimatePresence>
 
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-550">
-              Type your response below
-            </label>
-            <textarea
-              value={userAnswer}
-              onChange={(e) => setUserAnswer(e.target.value)}
-              disabled={isSubmitting}
-              rows={8}
-              className="block w-full p-4 bg-zinc-950 border border-zinc-850 rounded-xl text-sm text-white placeholder-zinc-650 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 leading-relaxed disabled:opacity-50 resize-none"
-              placeholder="Structure your answer clearly. Explain key terms, tradeoffs, and architectural examples where appropriate..."
-            />
-            <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-1">
-              <span>Press Submit when finished</span>
-              <span>{userAnswer.length} characters</span>
+          {currentQuestion.type === 'mcq' ? (
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-550">
+                Select your answer option
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(currentQuestion.options || []).map((option, oIdx) => {
+                  const isSelected = userAnswer === option;
+                  return (
+                    <button
+                      key={oIdx}
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setUserAnswer(option)}
+                      className={`w-full p-4 text-left rounded-xl border text-sm font-medium transition-all duration-200 disabled:opacity-60 ${
+                        isSelected
+                          ? 'bg-purple-650/10 border-purple-500 text-purple-400 shadow-md shadow-purple-500/5'
+                          : 'bg-zinc-950 border-zinc-850 text-zinc-300 hover:border-zinc-700 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-bold ${
+                          isSelected ? 'border-purple-500 bg-purple-500 text-white' : 'border-zinc-700 bg-zinc-905 text-zinc-550'
+                        }`}>
+                          {String.fromCharCode(65 + oIdx)}
+                        </div>
+                        <span className="flex-1 leading-snug">{option}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-550">
+                Type your response below
+              </label>
+              <textarea
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                disabled={isSubmitting}
+                rows={8}
+                className="block w-full p-4 bg-zinc-950 border border-zinc-850 rounded-xl text-sm text-white placeholder-zinc-650 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 leading-relaxed disabled:opacity-50 resize-none"
+                placeholder="Structure your answer clearly. Explain key terms, tradeoffs, and architectural examples where appropriate..."
+              />
+              <div className="flex justify-between items-center text-[10px] text-zinc-500 pt-1">
+                <span>Press Submit when finished</span>
+                <span>{userAnswer.length} characters</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Controls */}
