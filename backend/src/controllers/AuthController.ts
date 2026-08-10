@@ -9,7 +9,7 @@ const authService = new AuthService();
 const getCookieOptions = (maxAgeMs: number) => ({
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  sameSite: env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
   maxAge: maxAgeMs,
   path: '/',
 });
@@ -42,8 +42,8 @@ export class AuthController {
       );
 
       // Set secure HTTPOnly cookies
-      // 15 mins for access token
-      res.cookie('accessToken', accessToken, getCookieOptions(15 * 60 * 1000));
+      // 1 hour for access token
+      res.cookie('accessToken', accessToken, getCookieOptions(60 * 60 * 1000));
       // 7 days for refresh token
       res.cookie('refreshToken', refreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000));
 
@@ -70,7 +70,7 @@ export class AuthController {
       );
 
       // Re-write cookies
-      res.cookie('accessToken', accessToken, getCookieOptions(15 * 60 * 1000));
+      res.cookie('accessToken', accessToken, getCookieOptions(60 * 60 * 1000));
       res.cookie('refreshToken', rotatedRefreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000));
 
       res.status(200).json({
