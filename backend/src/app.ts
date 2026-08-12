@@ -14,10 +14,14 @@ const app: Application = express();
 app.use(helmet());
 
 // CORS configuration (Supporting secure HttpOnly cookies)
+const envOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((url) => url.trim().replace(/\/$/, ''))
+  : [];
+
 const allowedOrigins = [
   'http://localhost:5173', // Vite standard dev port
   'http://localhost:3000',
-  process.env.FRONTEND_URL, // Production Frontend URL
+  ...envOrigins,
 ].filter(Boolean) as string[];
 
 app.use(

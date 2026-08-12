@@ -16,6 +16,7 @@ export const auth = (
 ): void => {
   try {
     let token: string | undefined = undefined;
+    console.log('[AUTH] AUTH ME REQUEST received. Cookies present:', !!req.cookies, 'accessToken present:', !!req.cookies?.accessToken);
 
     // 1. Check for token in cookies (preferred web authentication)
     if (req.cookies && req.cookies.accessToken) {

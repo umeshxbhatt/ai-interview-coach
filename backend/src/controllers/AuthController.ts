@@ -6,10 +6,11 @@ import { env } from '../config/environment';
 const authService = new AuthService();
 
 // Helper cookie settings based on environment
+const isProd = env.NODE_ENV === 'production' || process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
 const getCookieOptions = (maxAgeMs: number) => ({
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
-  sameSite: env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
+  secure: isProd,
+  sameSite: isProd ? 'none' as const : 'lax' as const,
   maxAge: maxAgeMs,
   path: '/',
 });
@@ -41,11 +42,15 @@ export class AuthController {
         userAgent
       );
 
+      console.log(`[AUTH] LOGIN SUCCESS for user: ${email}`);
+
       // Set secure HTTPOnly cookies
       // 1 hour for access token
       res.cookie('accessToken', accessToken, getCookieOptions(60 * 60 * 1000));
+      console.log('[AUTH] ACCESS COOKIE SET');
       // 7 days for refresh token
       res.cookie('refreshToken', refreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000));
+      console.log('[AUTH] REFRESH COOKIE SET');
 
       res.status(200).json({
         status: 'success',
@@ -60,6 +65,7 @@ export class AuthController {
   static async refresh(req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): Promise<void> {
     try {
       const refreshToken = req.cookies.refreshToken;
+      console.log('[AUTH] REFRESH REQUEST received. Cookies present:', !!req.cookies, 'refreshToken present:', !!refreshToken);
       const ipAddress = req.ip || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
@@ -71,16 +77,20 @@ export class AuthController {
 
       // Re-write cookies
       res.cookie('accessToken', accessToken, getCookieOptions(60 * 60 * 1000));
+      console.log('[AUTH] ACCESS COOKIE SET on refresh');
       res.cookie('refreshToken', rotatedRefreshToken, getCookieOptions(7 * 24 * 60 * 60 * 1000));
+      console.log('[AUTH] REFRESH COOKIE SET on refresh');
 
+      console.log('[AUTH] REFRESH SUCCESS');
       res.status(200).json({
         status: 'success',
         message: 'Session refreshed successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[AUTH] REFRESH FAILURE:', error.message);
       // Clear cookies if refresh failed to enforce clean login
-      res.clearCookie('accessToken', { path: '/' });
-      res.clearCookie('refreshToken', { path: '/' });
+      res.clearCookie('accessToken', getCookieOptions(0));
+      res.clearCookie('refreshToken', getCookieOptions(0));
       next(error);
     }
   }
@@ -91,8 +101,8 @@ export class AuthController {
       await authService.logout(refreshToken);
 
       // Clear cookies from client
-      res.clearCookie('accessToken', { path: '/' });
-      res.clearCookie('refreshToken', { path: '/' });
+      res.clearCookie('accessToken', getCookieOptions(0));
+      res.clearCookie('refreshToken', getCookieOptions(0));
 
       res.status(200).json({
         status: 'success',

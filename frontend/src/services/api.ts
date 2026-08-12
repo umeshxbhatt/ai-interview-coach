@@ -14,12 +14,12 @@ let failedQueue: Array<{
   reject: (reason: any) => void;
 }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: any) => {
   failedQueue.forEach((prom) => {
-    if (token) {
-      prom.resolve(token);
-    } else {
+    if (error) {
       prom.reject(error);
+    } else {
+      prom.resolve(null);
     }
   });
   failedQueue = [];
@@ -73,7 +73,7 @@ api.interceptors.response.use(
       // Retry original request
       return api(originalRequest);
     } catch (refreshError) {
-      processQueue(refreshError, null);
+      processQueue(refreshError);
       isRefreshing = false;
       
       // Clear client state (optionally trigger store logout)
