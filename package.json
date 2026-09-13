@@ -8,7 +8,7 @@
     "install:frontend": "cd frontend && npm install --legacy-peer-deps",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:python": "cd python-service && venv\\Scripts\\activate && uvicorn main:app --reload --port 8000",
+    "dev:python": "cd python-service && venv/bin/activate && uvicorn main:app --reload --port 8000",
     "dev": "concurrently -n \"BACKEND,FRONTEND,PYTHON\" -c \"blue,green,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:python\"",
     "check:backend": "cd backend && npm run check",
     "check:frontend": "cd frontend && npm run check",
